@@ -1,4 +1,4 @@
-let apiKey = "AIzaSyDIknI4hyt8a-h8VNb12usrYnaZsTTquOo"
+let apiKey = import.meta.env.VITE_GEMINI_API_KEY ;
 
 import {
   GoogleGenerativeAI,
