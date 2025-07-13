@@ -6,10 +6,28 @@ function UserContext({children}) {
   let [speaking, setSpeaking] = useState(false);
   let [prompt, setPrompt] = useState("Listening...");
   let [response, setResponse] = useState(false);
+  let [language, setLanguage] = useState("en-US"); // Default to English
+
+  // Language detection function
+  function detectLanguage(text) {
+    // Simple Hindi detection - check for Devanagari script
+    const hindiPattern = /[\u0900-\u097F]/;
+    if (hindiPattern.test(text)) {
+      return "hi-IN";
+    }
+    // Check for common Hindi words in Latin script
+    const hindiWordsPattern = /(namaste|kaise|hain|aap|mera|naam|kya|hai|hindi|boliye)/i;
+    if (hindiWordsPattern.test(text)) {
+      return "hi-IN";
+    }
+    return "en-US";
+  }
 
   function speak(text) {
     let text_speak = new SpeechSynthesisUtterance(text)
-    text_speak.lang = "en-US";
+    // Detect language for appropriate speech synthesis
+    let detectedLang = detectLanguage(text);
+    text_speak.lang = detectedLang;
     text_speak.rate = 1;
     text_speak.volume = 1;
     text_speak.pitch = 1;
@@ -39,7 +57,9 @@ function UserContext({children}) {
   // Separate function for command responses (like "Opening YouTube")
   function speakCommand(text) {
     let text_speak = new SpeechSynthesisUtterance(text)
-    text_speak.lang = "en-US";
+    // Detect language for appropriate speech synthesis
+    let detectedLang = detectLanguage(text);
+    text_speak.lang = detectedLang;
     text_speak.rate = 1;
     text_speak.volume = 1;
     text_speak.pitch = 1;
@@ -60,10 +80,32 @@ function UserContext({children}) {
 
   let speechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = new speechRecognition();
+  
+  // Set up recognition for both languages
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  
+  // Function to switch recognition language
+  function setRecognitionLanguage(lang) {
+    recognition.lang = lang;
+    setLanguage(lang);
+  }
+  
+  // Start with English, but we'll add language switching capability
+  recognition.lang = language;
+  
   recognition.onresult = (e) => {
     let currentIndex = e.resultIndex;
     let transcript = e.results[currentIndex][0].transcript;
-    console.log(transcript);
+    console.log("Recognized:", transcript);
+    
+    // Detect the language of the recognized speech
+    let detectedLang = detectLanguage(transcript);
+    if (detectedLang !== language) {
+      setLanguage(detectedLang);
+    }
+    
     setPrompt(transcript); // Update prompt with the recognized text
     setResponse(false); // Keep showing listening gif until AI response starts
     takeCommand(transcript.toLowerCase());
@@ -80,93 +122,194 @@ function UserContext({children}) {
   }
   
   function takeCommand(command){
-    if(command.includes("open") && command.includes("youtube")){
+    // YouTube commands - English & Hindi
+    if((command.includes("open") && command.includes("youtube")) || 
+       (command.includes("youtube") && (command.includes("kholo") || command.includes("chalao"))) ||
+       command.includes("यूट्यूब")){
       window.open("https://www.youtube.com/","_blank")
-      speakCommand("Opening Youtube")
-      setPrompt("Opening Youtube...")
+      let isHindi = detectLanguage(command) === "hi-IN";
+      speakCommand(isHindi ? "YouTube khol raha hun" : "Opening Youtube")
+      setPrompt(isHindi ? "YouTube khol raha hun..." : "Opening Youtube...")
       setResponse(true);
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 3000);
     }
-    else if(command.includes("open") && command.includes("google")){
+    // Google commands - English & Hindi
+    else if((command.includes("open") && command.includes("google")) || 
+            (command.includes("google") && (command.includes("kholo") || command.includes("chalao"))) ||
+            command.includes("गूगल")){
       window.open("https://www.google.com/","_blank")
-      speakCommand("Opening Google")
+      let isHindi = detectLanguage(command) === "hi-IN";
+      speakCommand(isHindi ? "Google khol raha hun" : "Opening Google")
       setResponse(true);
-      setPrompt("Opening Google...")
+      setPrompt(isHindi ? "Google khol raha hun..." : "Opening Google...")
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 3000);
     }
-    else if(command.includes("open") && command.includes("instagram")){
+    // Instagram commands - English & Hindi
+    else if((command.includes("open") && command.includes("instagram")) || 
+            (command.includes("instagram") && (command.includes("kholo") || command.includes("chalao"))) ||
+            command.includes("इंस्टाग्राम")){
       window.open("https://www.instagram.com/","_blank")
-      speakCommand("Opening Instagram")
+      let isHindi = detectLanguage(command) === "hi-IN";
+      speakCommand(isHindi ? "Instagram khol raha hun" : "Opening Instagram")
       setResponse(true);
-      setPrompt("Opening Instagram...")
+      setPrompt(isHindi ? "Instagram khol raha hun..." : "Opening Instagram...")
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 3000);
     }
-    else if(command.includes("date") || command.includes("today") || command.includes("what day")){
+    // Date commands - English & Hindi
+    else if(command.includes("date") || command.includes("today") || command.includes("what day") ||
+            command.includes("aaj") || command.includes("tarikh") || command.includes("din") ||
+            command.includes("आज") || command.includes("तारीख")){
       let today = new Date();
-      let dateString = today.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-      speakCommand(`Today is ${dateString}`);
+      let isHindi = detectLanguage(command) === "hi-IN" || 
+                   command.includes("aaj") || command.includes("tarikh") || command.includes("आज");
+      
+      if(isHindi) {
+        let hindiDateString = today.toLocaleDateString('hi-IN', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        speakCommand(`Aaj ki tarikh hai ${hindiDateString}`);
+        setPrompt(`Aaj ki tarikh: ${hindiDateString}`);
+      } else {
+        let dateString = today.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        speakCommand(`Today is ${dateString}`);
+        setPrompt(`Today is ${dateString}`);
+      }
       setResponse(true);
-      setPrompt(`Today is ${dateString}`);
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 4000);
     }
-    else if(command.includes("time") || command.includes("what time")){
+    // Time commands - English & Hindi
+    else if(command.includes("time") || command.includes("what time") ||
+            command.includes("samay") || command.includes("kitna") || command.includes("baje") ||
+            command.includes("समय") || command.includes("बजे")){
       let now = new Date();
-      let timeString = now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      });
-      speakCommand(`The current time is ${timeString}`);
+      let isHindi = detectLanguage(command) === "hi-IN" || 
+                   command.includes("samay") || command.includes("baje") || command.includes("समय");
+      
+      if(isHindi) {
+        let timeString = now.toLocaleTimeString('hi-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        });
+        speakCommand(`Abhi samay hai ${timeString}`);
+        setPrompt(`Samay: ${timeString}`);
+      } else {
+        let timeString = now.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        });
+        speakCommand(`The current time is ${timeString}`);
+        setPrompt(`Current time: ${timeString}`);
+      }
       setResponse(true);
-      setPrompt(`Current time: ${timeString}`);
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 4000);
     }
-    else if(command.includes("hello") || command.includes("hi") || command.includes("hey")){
-      speakCommand("Hello! I'm Victor, your AI assistant. How can I help you today?");
+    // Greetings - English & Hindi
+    else if(command.includes("hello") || command.includes("hi") || command.includes("hey") ||
+            command.includes("namaste") || command.includes("namaskar") || command.includes("adaab") ||
+            command.includes("नमस्ते") || command.includes("हैलो")){
+      let isHindi = detectLanguage(command) === "hi-IN" || 
+                   command.includes("namaste") || command.includes("namaskar") || command.includes("नमस्ते");
+      
+      if(isHindi) {
+        speakCommand("Namaste! Main Victor hun, aapka AI assistant. Main aapki kaise madad kar sakta hun?");
+        setPrompt("Namaste! Kaise madad kar sakta hun?");
+      } else {
+        speakCommand("Hello! I'm Victor, your AI assistant. How can I help you today?");
+        setPrompt("Hello! How can I help you?");
+      }
       setResponse(true);
-      setPrompt("Hello! How can I help you?");
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 5000);
     }
-    else if(command.includes("thank you") || command.includes("thanks")){
-      speakCommand("You're welcome! I'm always here to help you.");
+    // Thank you - English & Hindi
+    else if(command.includes("thank you") || command.includes("thanks") ||
+            command.includes("dhanyawad") || command.includes("shukriya") || command.includes("dhanyawaad") ||
+            command.includes("धन्यवाद") || command.includes("शुक्रिया")){
+      let isHindi = detectLanguage(command) === "hi-IN" || 
+                   command.includes("dhanyawad") || command.includes("shukriya") || command.includes("धन्यवाद");
+      
+      if(isHindi) {
+        speakCommand("Koi baat nahi! Main hamesha aapki madad ke liye yahan hun.");
+        setPrompt("Koi baat nahi!");
+      } else {
+        speakCommand("You're welcome! I'm always here to help you.");
+        setPrompt("You're welcome!");
+      }
       setResponse(true);
-      setPrompt("You're welcome!");
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 3000);
     }
-    else if(command.includes("your name") || command.includes("who are you") || command.includes("what are you")){
-      speakCommand("I'm Victor, your advanced virtual assistant. I'm here to help you with questions, open websites, and have conversations!");
+    // Name/Identity - English & Hindi
+    else if(command.includes("your name") || command.includes("who are you") || command.includes("what are you") ||
+            command.includes("tumhara naam") || command.includes("tum kaun") || command.includes("aap kaun") ||
+            command.includes("तुम्हारा नाम") || command.includes("आप कौन")){
+      let isHindi = detectLanguage(command) === "hi-IN" || 
+                   command.includes("tumhara") || command.includes("kaun") || command.includes("नाम");
+      
+      if(isHindi) {
+        speakCommand("Main Victor hun, aapka advanced virtual assistant. Main aapki sawalon mein madad kar sakta hun, websites khol sakta hun, aur baat-cheet kar sakta hun!");
+        setPrompt("Main Victor hun, aapka AI assistant!");
+      } else {
+        speakCommand("I'm Victor, your advanced virtual assistant. I'm here to help you with questions, open websites, and have conversations!");
+        setPrompt("I'm Victor, your AI assistant!");
+      }
       setResponse(true);
-      setPrompt("I'm Victor, your AI assistant!");
       setTimeout(() => {
         setResponse(false);
         setSpeaking(false);
       }, 6000);
+    }
+    // Language switch commands
+    else if(command.includes("switch to hindi") || command.includes("hindi mein baat karo") ||
+            command.includes("हिंदी में बात करो")){
+      setRecognitionLanguage("hi-IN");
+      speakCommand("Theek hai, ab main Hindi mein baat karunga!");
+      setPrompt("अब Hindi में बात कर रहे हैं");
+      setResponse(true);
+      setTimeout(() => {
+        setResponse(false);
+        setSpeaking(false);
+      }, 3000);
+    }
+    else if(command.includes("switch to english") || command.includes("english mein baat karo") ||
+            command.includes("अंग्रेजी में बात करो")){
+      setRecognitionLanguage("en-US");
+      speakCommand("Okay, I'll speak in English now!");
+      setPrompt("Now speaking in English");
+      setResponse(true);
+      setTimeout(() => {
+        setResponse(false);
+        setSpeaking(false);
+      }, 3000);
     }
     else{
       // Small delay to show the transition from listening to AI response
@@ -184,7 +327,10 @@ function UserContext({children}) {
     prompt,
     setPrompt,
     response,
-    setResponse
+    setResponse,
+    language,
+    setLanguage,
+    setRecognitionLanguage
   }
   return (
     <div>
